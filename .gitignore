@@ -3,3 +3,4 @@ __pycache__/
 .venv/
 *.jsonl
 .DS_Store
+.idea/
