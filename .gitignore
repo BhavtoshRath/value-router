@@ -4,4 +4,3 @@ __pycache__/
 *.jsonl
 .DS_Store
 .idea/
-notes/
