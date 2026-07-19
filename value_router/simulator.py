@@ -7,21 +7,33 @@ value estimator, router, eval harness) have something realistic to work with.
 
 Design notes
 ------------
-- Each item belongs to a category. Categories differ in typical price,
-  margin, and difficulty, and in how often they occur (volume weight).
+- Each item belongs to one of the 5 categories ( commodity, accessory, mid_tier,
+premium, luxury ). Categories differ in typical price,
+  margin, and difficulty, and in how often they generate guest traffic (volume weight).
 - `value = price * margin` is the deterministic ground-truth expected
   profit per item. This is what the value estimator will later try to
   approximate, and what the eval harness will use as the "realized value"
   to check routing decisions against.
-- Difficulty is sampled independently of value within a category's range,
-  representing how hard it is to make a good routing/content decision for
-  that item (not how valuable it is).
+- Difficulty is sampled independently of value within a category's range.
+  It does not represent how valuable an item is; it represents how
+  confidently the cheap fast-path (like a rule/lookup/simple scoring
+  function with near-zero latency and cost) can be trusted for that item, i.e. how
+  low or high the risk is that the item needs to be escalated to the
+  slower, LLM-reasoning path (low difficulty = fast-path is trustworthy;
+  high difficulty = more likely to need an LLM).
 - The default category set deliberately bakes in a volume/value inverse
   correlation (cheap, high-volume "commodity" categories vs. rare,
   high-value "premium" categories), matching the concern in the proposal
   that a naive router could silently starve the low-volume/high-value
   segment of budget. This can be turned off via `inverse_correlation=False`
   for a null-hypothesis / control run.
+
+Example output (JSONL, via `--out`)
+------------------------------------
+{"id": 0, "category": "accessory", "price": 10.75, "margin": 0.1275, "value": 1.3707, "difficulty": 0.217}
+{"id": 1, "category": "mid_tier", "price": 114.44, "margin": 0.266, "value": 30.4383, "difficulty": 0.2804}
+{"id": 2, "category": "accessory", "price": 10.89, "margin": 0.1219, "value": 1.3276, "difficulty": 0.3016}
+{"id": 3, "category": "commodity", "price": 5.39, "margin": 0.0955, "value": 0.5143, "difficulty": 0.2135}
 """
 
 from __future__ import annotations
@@ -30,7 +42,7 @@ import argparse
 import json
 import random
 import statistics
-from dataclasses import dataclass, asdict, field
+from dataclasses import dataclass
 from typing import Optional
 
 
@@ -39,8 +51,8 @@ class CategoryConfig:
     name: str
     weight: float  # relative volume share (not required to sum to 1; normalized internally)
     price_range: tuple[float, float]
-    margin_range: tuple[float, float]  # fraction, e.g. 0.05 = 5% margin
-    difficulty_range: tuple[float, float]  # 0..1, higher = harder to route/decide on
+    margin_range: tuple[float, float]  # fraction of profit % on the price of the item, e.g. 0.05 = 5% margin
+    difficulty_range: tuple[float, float]  # 0..1, higher = less trustworthy on the fast path, more likely to need escalation to the slow path
 
 
 # Deliberately inverse-correlated: high weight (volume) categories have low
@@ -62,10 +74,10 @@ class Item:
     price: float
     margin: float
     value: float  # ground-truth price * margin
-    difficulty: float  # 0..1
+    difficulty: float  # 0..1, higher = more likely to need escalation from fast path to slow path
 
     def as_dict(self) -> dict:
-        return asdict(self)
+        return dict(vars(self))
 
 
 class Simulator:
@@ -173,4 +185,5 @@ def main():
 
 
 if __name__ == "__main__":
+    # python3 -m value_router.simulator -n 2000 --seed 42 --out items.jsonl
     main()
