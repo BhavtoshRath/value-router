@@ -1,0 +1,8 @@
+You already have this — I created it a moment ago as `/save-response <file-path>` (`.claude/commands/save-response.md`), and it's now showing up in your available skills list.
+
+Usage:
+```
+/save-response notes/last-answer.txt
+```
+
+It'll write my immediately preceding response verbatim to that path, creating parent directories as needed. Want me to change its name, behavior, or default location instead?
